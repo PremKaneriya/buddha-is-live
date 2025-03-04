@@ -86,6 +86,8 @@ app.use("/:id", async (req, res, next) => {
 
 // ✅ Start Server on Railway
 const PORT = process.env.PORT || 3000;
+console.log("Listening on:", process.env.PORT);
+
 app.listen(PORT, "0.0.0.0", () => {
     console.log(`🚀 Server running on port ${PORT}`);
 });
