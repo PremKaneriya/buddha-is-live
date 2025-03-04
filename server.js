@@ -7,16 +7,15 @@ const shortid = require("shortid");
 
 dotenv.config();
 const app = express();
-app.use(cors({ origin: "*" }));
+app.use(cors()); // Allow all origins
 app.use(express.json());
 
-// Ensure MongoDB URI is provided
 if (!process.env.MONGO_URI) {
     console.error("❌ MONGO_URI is missing! Add it in Railway environment variables.");
     process.exit(1);
 }
 
-// Connect to MongoDB
+// ✅ MongoDB Connection
 mongoose
     .connect(process.env.MONGO_URI, {
         useNewUrlParser: true,
@@ -28,14 +27,14 @@ mongoose
         process.exit(1);
     });
 
-// Define Mongoose Schema & Model
+// ✅ Tunnel Schema
 const TunnelSchema = new mongoose.Schema({
     id: String,
     target: String,
 });
 const Tunnel = mongoose.model("Tunnel", TunnelSchema);
 
-// Create a new tunnel
+// ✅ Create Tunnel
 app.post("/create-tunnel", async (req, res) => {
     try {
         const { target } = req.body;
@@ -47,14 +46,16 @@ app.post("/create-tunnel", async (req, res) => {
         const newTunnel = new Tunnel({ id, target });
         await newTunnel.save();
 
-        res.json({ tunnelUrl: `${req.hostname}/${id}` });
+        // ✅ Fix URL construction
+        const tunnelUrl = `https://${req.get("host")}/${id}`;
+        res.json({ tunnelUrl });
     } catch (error) {
         console.error("❌ Error creating tunnel:", error);
         res.status(500).json({ error: "Internal server error" });
     }
 });
 
-// Proxy traffic to the target URL
+// ✅ Proxy Requests with Better Debugging
 app.use("/:id", async (req, res, next) => {
     try {
         const tunnel = await Tunnel.findOne({ id: req.params.id });
@@ -68,7 +69,12 @@ app.use("/:id", async (req, res, next) => {
         const proxy = createProxyMiddleware({
             target: tunnel.target,
             changeOrigin: true,
-            logLevel: "debug", // Enable logging for debugging
+            logLevel: "debug",
+            timeout: 5000, // ✅ Timeout to prevent hanging requests
+            onError: (err, req, res) => {
+                console.error("❌ Proxy Error:", err.message);
+                res.status(502).json({ error: "Bad Gateway - Proxy failed" });
+            },
         });
 
         return proxy(req, res, next);
@@ -78,6 +84,8 @@ app.use("/:id", async (req, res, next) => {
     }
 });
 
-// Start the server
-const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => console.log(`🚀 Server running on port http://localhost:${PORT}`));
+// ✅ Start Server on Railway
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, "0.0.0.0", () => {
+    console.log(`🚀 Server running on port ${PORT}`);
+});
